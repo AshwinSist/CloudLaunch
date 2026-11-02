@@ -11,11 +11,10 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   backend-check:
-    name: Backend Build and Check
+    name: Backend Build and Test
     runs-on: ubuntu-latest
 
     steps:
@@ -32,11 +31,17 @@ jobs:
           cd app/backend
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest httpx
 
       - name: Check backend imports
         run: |
           cd app/backend
           python -c "from main import app; print('Backend application loaded successfully')"
+
+      - name: Run backend tests
+        run: |
+          cd app/backend
+          python -m pytest -v
 
   frontend-check:
     name: Frontend Build and Check
@@ -90,6 +95,10 @@ jobs:
       - security-scan
 
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Get source code
