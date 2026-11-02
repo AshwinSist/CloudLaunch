@@ -1,0 +1,7 @@
+
+# Temporary accepted risk:
+# CloudLaunch requires outbound HTTP and HTTPS for package installation
+# and Docker image downloads.
+# Review this exception before 2027-02-02.
+
+AWS-0104 exp:2027-02-02
