@@ -1,0 +1,229 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  CloudLaunch - New and independent AWS infrastructure
+  with VPC, public subnet, networking, security group,
+  IAM role, and EC2 instance.
+
+Parameters:
+
+  InstanceType:
+    Description: EC2 instance type for CloudLaunch
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+
+  AMI:
+    Description: Ubuntu Server 24.04 AMI in ap-southeast-2
+    Type: AWS::EC2::Image::Id
+    Default: ami-01e91e94accc42eec
+
+  AvailabilityZone:
+    Description: Availability Zone for the new public subnet
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-southeast-2b
+
+Resources:
+
+  # 1. Create a completely new VPC
+
+  CloudLaunchVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: CloudLaunch-VPC
+
+  # 2. Create a new public subnet
+
+  CloudLaunchPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudLaunchVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Ref AvailabilityZone
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: CloudLaunch-Public-Subnet
+
+  # 3. Create a new Internet Gateway
+
+  CloudLaunchInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: CloudLaunch-Internet-Gateway
+
+  # 4. Attach Internet Gateway to the new VPC
+
+  CloudLaunchGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref CloudLaunchVPC
+      InternetGatewayId: !Ref CloudLaunchInternetGateway
+
+  # 5. Create a new route table
+
+  CloudLaunchRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CloudLaunchVPC
+      Tags:
+        - Key: Name
+          Value: CloudLaunch-Public-Route-Table
+
+  # 6. Create a route to the internet
+
+  CloudLaunchInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: CloudLaunchGatewayAttachment
+    Properties:
+      RouteTableId: !Ref CloudLaunchRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref CloudLaunchInternetGateway
+
+  # 7. Associate the route table with the subnet
+
+  CloudLaunchSubnetRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudLaunchPublicSubnet
+      RouteTableId: !Ref CloudLaunchRouteTable
+
+  # 8. Create a new security group
+
+  CloudLaunchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP access to CloudLaunch
+      VpcId: !Ref CloudLaunchVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: CloudLaunch-Security-Group
+
+  # 9. Create a new IAM role for EC2
+
+  CloudLaunchEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Tags:
+        - Key: Name
+          Value: CloudLaunch-EC2-Role
+
+  # 10. Create an instance profile for the IAM role
+
+  CloudLaunchInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref CloudLaunchEC2Role
+
+  # 11. Create a completely new EC2 instance
+
+  CloudLaunchEC2:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - CloudLaunchSubnetRouteAssociation
+    Properties:
+      ImageId: !Ref AMI
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref CloudLaunchPublicSubnet
+      SecurityGroupIds:
+        - !Ref CloudLaunchSecurityGroup
+      IamInstanceProfile: !Ref CloudLaunchInstanceProfile
+      MetadataOptions:
+        HttpTokens: required
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -eux
+
+          apt-get update -y
+          apt-get install -y docker.io snapd
+
+          systemctl enable docker
+          systemctl start docker
+
+          usermod -aG docker ubuntu
+
+          snap install amazon-ssm-agent --classic
+          systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+          systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+      Tags:
+        - Key: Name
+          Value: CloudLaunch-EC2
+        - Key: Project
+          Value: CloudLaunch
+
+Outputs:
+
+  VPCId:
+    Description: Newly created CloudLaunch VPC
+    Value: !Ref CloudLaunchVPC
+
+  PublicSubnetId:
+    Description: Newly created public subnet
+    Value: !Ref CloudLaunchPublicSubnet
+
+  InternetGatewayId:
+    Description: Newly created Internet Gateway
+    Value: !Ref CloudLaunchInternetGateway
+
+  RouteTableId:
+    Description: Newly created route table
+    Value: !Ref CloudLaunchRouteTable
+
+  SecurityGroupId:
+    Description: Newly created security group
+    Value: !Ref CloudLaunchSecurityGroup
+
+  InstanceId:
+    Description: Newly created CloudLaunch EC2 instance
+    Value: !Ref CloudLaunchEC2
+
+  PublicIP:
+    Description: Public IP address of CloudLaunch EC2
+    Value: !GetAtt CloudLaunchEC2.PublicIp
+
+  PublicDNS:
+    Description: Public DNS name of CloudLaunch EC2
+    Value: !GetAtt CloudLaunchEC2.PublicDnsName
+
+  InstanceRole:
+    Description: IAM role attached to EC2
+    Value: !Ref CloudLaunchEC2Role

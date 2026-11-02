@@ -1,0 +1,127 @@
+
+---
+- name: Configure CloudLaunch automatic deployment
+  hosts: cloudlaunch
+  become: true
+  gather_facts: false
+
+  vars:
+    app_directory: /opt/cloudlaunch
+    backend_image: ghcr.io/ashwinsist/cloudlaunch-backend:latest
+    frontend_image: ghcr.io/ashwinsist/cloudlaunch-frontend:latest
+
+  tasks:
+    - name: Create automatic deployment script
+      ansible.builtin.copy:
+        dest: /usr/local/bin/cloudlaunch-update.sh
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          APP_DIR="/opt/cloudlaunch"
+          BACKEND="{{ backend_image }}"
+          FRONTEND="{{ frontend_image }}"
+
+          cd "$APP_DIR"
+
+          echo "Checking CloudLaunch image updates..."
+
+          OLD_BACKEND=$(docker image inspect "$BACKEND" --format '{{ '{{' }}.Id{{ '}}' }}')
+          OLD_FRONTEND=$(docker image inspect "$FRONTEND" --format '{{ '{{' }}.Id{{ '}}' }}')
+
+          docker compose pull
+
+          NEW_BACKEND=$(docker image inspect "$BACKEND" --format '{{ '{{' }}.Id{{ '}}' }}')
+          NEW_FRONTEND=$(docker image inspect "$FRONTEND" --format '{{ '{{' }}.Id{{ '}}' }}')
+
+          if [[ "$OLD_BACKEND" == "$NEW_BACKEND" && "$OLD_FRONTEND" == "$NEW_FRONTEND" ]]; then
+            echo "No new images. Existing deployment remains unchanged."
+            exit 0
+          fi
+
+          echo "New images detected. Starting deployment..."
+
+          rollback() {
+            echo "Deployment failed. Restoring previous images..."
+
+            docker image tag "$OLD_BACKEND" "$BACKEND"
+            docker image tag "$OLD_FRONTEND" "$FRONTEND"
+
+            docker compose up -d --remove-orphans
+
+            echo "Rollback attempted. Check application health."
+          }
+
+          if ! docker compose up -d --remove-orphans; then
+            rollback
+            exit 1
+          fi
+
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent http://127.0.0.1/api/dashboard > /dev/null; then
+              echo "CloudLaunch deployment successful."
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          rollback
+          exit 1
+
+    - name: Create systemd deployment service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/cloudlaunch-update.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=CloudLaunch automatic image deployment
+          Wants=docker.service
+          After=docker.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/cloudlaunch-update.sh
+          TimeoutStartSec=300
+
+    - name: Create systemd deployment timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/cloudlaunch-update.timer
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Check CloudLaunch for new Docker images
+
+          [Timer]
+          OnBootSec=2min
+          OnUnitActiveSec=5min
+          Persistent=true
+          Unit=cloudlaunch-update.service
+
+          [Install]
+          WantedBy=timers.target
+
+    - name: Reload systemd configuration
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Ensure deployment timer remains disabled during testing
+      ansible.builtin.systemd:
+        name: cloudlaunch-update.timer
+        enabled: false
+        state: stopped
+
+    - name: Confirm deployment service is installed
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - cat
+          - cloudlaunch-update.service
+      changed_when: false

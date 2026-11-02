@@ -1,0 +1,89 @@
+
+---
+- name: Deploy CloudLaunch application
+  hosts: cloudlaunch
+  become: true
+  gather_facts: true
+
+  vars:
+    app_directory: /opt/cloudlaunch
+    backend_image: ghcr.io/ashwinsist/cloudlaunch-backend:latest
+    frontend_image: ghcr.io/ashwinsist/cloudlaunch-frontend:latest
+
+  tasks:
+    - name: Install Docker and Docker Compose
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker service is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create CloudLaunch application directory
+      ansible.builtin.file:
+        path: "{{ app_directory }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create Docker Compose configuration
+      ansible.builtin.copy:
+        dest: "{{ app_directory }}/docker-compose.yml"
+        mode: "0644"
+        content: |
+          services:
+            backend:
+              image: {{ backend_image }}
+              container_name: cloudlaunch-ghcr-backend
+              restart: unless-stopped
+              expose:
+                - "8000"
+
+            frontend:
+              image: {{ frontend_image }}
+              container_name: cloudlaunch-frontend
+              restart: unless-stopped
+              ports:
+                - "80:80"
+              depends_on:
+                - backend
+
+    - name: Pull latest application images
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -f
+          - "{{ app_directory }}/docker-compose.yml"
+          - pull
+      changed_when: true
+
+    - name: Start CloudLaunch containers
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -f
+          - "{{ app_directory }}/docker-compose.yml"
+          - up
+          - -d
+      changed_when: true
+
+    - name: Check CloudLaunch frontend
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        status_code: 200
+        return_content: false
+      register: frontend_check
+      retries: 5
+      delay: 5
+      until: frontend_check.status == 200
+
+    - name: Display deployment result
+      ansible.builtin.debug:
+        msg: "CloudLaunch deployment completed successfully!"

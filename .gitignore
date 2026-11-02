@@ -33,3 +33,9 @@ Thumbs.db
 
 # Editor settings
 .vscode/
+/ansible/inventory/hosts.yml
+# Private keys and Terraform local files
+*.pem
+.terraform/
+*.tfstate*
+*.tfvars

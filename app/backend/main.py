@@ -2,10 +2,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+APP_VERSION = "1.0.1"
+
 app = FastAPI(
-    title="CloudLaunch Food Ordering API",
+    title="CloudLaunch API",
     description="Backend API for the CloudLaunch platform",
-    version="1.0.0"
+    version=APP_VERSION
 )
 
 # Allow the React frontend to communicate with FastAPI
@@ -21,21 +23,23 @@ app.add_middleware(
 @app.get("/")
 def home():
     return {
-        "message": "Welcome to CloudLaunch Food Ordering Application"
+        "message": "Welcome to CloudLaunch Application",
+        "version": APP_VERSION
     }
 
 
 @app.get("/health")
 def health_check():
     return {
-        "status": "healthy"
+        "status": "healthy",
+        "version": APP_VERSION
     }
 
 
 @app.get("/version")
 def version():
     return {
-        "version": "1.0.0"
+        "version": APP_VERSION
     }
 
 
@@ -47,5 +51,6 @@ def dashboard_data():
         "security_issues": 0,
         "estimated_cloud_cost": 0.00,
         "aws_connected": False,
-        "environment": "Development"
+        "environment": "Development",
+        "app_version": APP_VERSION
     }
