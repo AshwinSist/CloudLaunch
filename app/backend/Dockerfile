@@ -1,19 +1,26 @@
 
-FROM python:3.13-slim
+FROM python:3.13-alpine
 
 WORKDIR /app
 
-# Create a dedicated non-root user
-RUN useradd --create-home --shell /usr/sbin/nologin appuser
+# Update Alpine security packages
+RUN apk upgrade --no-cache
 
-# Install Python dependencies
+# Upgrade Python packaging and vulnerable dependencies
+RUN pip install --no-cache-dir --upgrade \
+    pip setuptools urllib3 msgpack
+
+# Create a dedicated non-root user
+RUN adduser -D -h /home/appuser -s /sbin/nologin appuser
+
+# Install application dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY --chown=appuser:appuser main.py .
 
-# Run the application as a non-root user
+# Run as a non-root user
 USER appuser
 
 EXPOSE 8000
