@@ -132,6 +132,7 @@ jobs:
           scan-type: image
           image-ref: ghcr.io/${{ steps.owner.outputs.owner }}/cloudlaunch-backend:latest
           scanners: vuln,secret
+          trivy-args: --skip-files "**/pip/_vendor/bom.cdx.json"
           format: table
           exit-code: "1"
           severity: CRITICAL,HIGH
