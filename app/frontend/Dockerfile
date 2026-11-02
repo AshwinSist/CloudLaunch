@@ -21,6 +21,9 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy custom Nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Explicitly run Nginx as a non-root user
+USER 101
+
 EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

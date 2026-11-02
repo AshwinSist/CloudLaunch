@@ -79,6 +79,7 @@ jobs:
       - name: Scan source code
         uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.1
           scan-type: fs
           scan-ref: .
           scanners: vuln,secret,misconfig
@@ -126,6 +127,7 @@ jobs:
       - name: Scan backend Docker image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.1
           scan-type: image
           image-ref: ghcr.io/${{ steps.owner.outputs.owner }}/cloudlaunch-backend:latest
           scanners: vuln,secret
@@ -136,6 +138,7 @@ jobs:
       - name: Scan frontend Docker image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.1
           scan-type: image
           image-ref: ghcr.io/${{ steps.owner.outputs.owner }}/cloudlaunch-frontend:latest
           scanners: vuln,secret
