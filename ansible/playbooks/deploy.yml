@@ -49,7 +49,7 @@
               container_name: cloudlaunch-frontend
               restart: unless-stopped
               ports:
-                - "80:80"
+                - "80:8080"
               depends_on:
                 - backend
 

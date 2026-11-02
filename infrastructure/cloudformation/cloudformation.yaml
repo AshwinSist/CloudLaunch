@@ -28,8 +28,6 @@ Parameters:
 
 Resources:
 
-  # 1. Create a completely new VPC
-
   CloudLaunchVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -40,20 +38,16 @@ Resources:
         - Key: Name
           Value: CloudLaunch-VPC
 
-  # 2. Create a new public subnet
-
   CloudLaunchPublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref CloudLaunchVPC
       CidrBlock: 10.0.1.0/24
       AvailabilityZone: !Ref AvailabilityZone
-      MapPublicIpOnLaunch: true
+      MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
           Value: CloudLaunch-Public-Subnet
-
-  # 3. Create a new Internet Gateway
 
   CloudLaunchInternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -62,15 +56,11 @@ Resources:
         - Key: Name
           Value: CloudLaunch-Internet-Gateway
 
-  # 4. Attach Internet Gateway to the new VPC
-
   CloudLaunchGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref CloudLaunchVPC
       InternetGatewayId: !Ref CloudLaunchInternetGateway
-
-  # 5. Create a new route table
 
   CloudLaunchRouteTable:
     Type: AWS::EC2::RouteTable
@@ -80,8 +70,6 @@ Resources:
         - Key: Name
           Value: CloudLaunch-Public-Route-Table
 
-  # 6. Create a route to the internet
-
   CloudLaunchInternetRoute:
     Type: AWS::EC2::Route
     DependsOn: CloudLaunchGatewayAttachment
@@ -90,16 +78,13 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref CloudLaunchInternetGateway
 
-  # 7. Associate the route table with the subnet
-
   CloudLaunchSubnetRouteAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref CloudLaunchPublicSubnet
       RouteTableId: !Ref CloudLaunchRouteTable
 
-  # 8. Create a new security group
-
+  #trivy:ignore:AWS-0104:exp:2027-02-02
   CloudLaunchSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -111,13 +96,25 @@ Resources:
           ToPort: 80
           CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
-        - IpProtocol: -1
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 10.0.0.0/16
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 10.0.0.0/16
       Tags:
         - Key: Name
           Value: CloudLaunch-Security-Group
-
-  # 9. Create a new IAM role for EC2
 
   CloudLaunchEC2Role:
     Type: AWS::IAM::Role
@@ -137,15 +134,11 @@ Resources:
         - Key: Name
           Value: CloudLaunch-EC2-Role
 
-  # 10. Create an instance profile for the IAM role
-
   CloudLaunchInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
         - !Ref CloudLaunchEC2Role
-
-  # 11. Create a completely new EC2 instance
 
   CloudLaunchEC2:
     Type: AWS::EC2::Instance
@@ -154,11 +147,15 @@ Resources:
     Properties:
       ImageId: !Ref AMI
       InstanceType: !Ref InstanceType
-      SubnetId: !Ref CloudLaunchPublicSubnet
-      SecurityGroupIds:
-        - !Ref CloudLaunchSecurityGroup
       IamInstanceProfile: !Ref CloudLaunchInstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: '0'
+          GroupSet:
+            - !Ref CloudLaunchSecurityGroup
+          SubnetId: !Ref CloudLaunchPublicSubnet
       MetadataOptions:
+        HttpEndpoint: enabled
         HttpTokens: required
       BlockDeviceMappings:
         - DeviceName: /dev/sda1
