@@ -45,36 +45,36 @@ function App() {
     return () => controller.abort()
   }, [])
 
+  const awsConnected = dashboardData?.aws_connected === true
+
   const statistics = [
     {
-      icon: '🚀',
-      label: 'Total Deployments',
-      value: dashboardData?.total_deployments ?? '—',
-      description: 'Deployment history',
+      icon: '☁',
+      label: 'Total EC2 Instances',
+      value: dashboardData?.total_ec2_instances ?? '—',
+      description: 'Instances in AWS region',
       color: 'blue',
     },
     {
       icon: '✓',
-      label: 'Successful Deployments',
-      value: dashboardData?.successful_deployments ?? '—',
-      description: 'Successfully released',
+      label: 'Running Instances',
+      value: dashboardData?.running_ec2_instances ?? '—',
+      description: 'Currently running',
       color: 'green',
     },
     {
-      icon: '♢',
-      label: 'Security Issues',
-      value: dashboardData?.security_issues ?? '—',
-      description: 'Scan findings',
-      color: 'red',
+      icon: '▱',
+      label: 'Stopped Instances',
+      value: dashboardData?.stopped_ec2_instances ?? '—',
+      description: 'Currently stopped',
+      color: 'orange',
     },
     {
-      icon: '▤',
-      label: 'Estimated Cloud Cost',
-      value: dashboardData
-        ? `$${Number(dashboardData.estimated_cloud_cost).toFixed(2)}`
-        : '—',
-      description: 'Cost overview',
-      color: 'orange',
+      icon: '♢',
+      label: 'AWS Connection',
+      value: dashboardData ? (awsConnected ? 'Connected' : 'Offline') : '—',
+      description: dashboardData?.aws_region ?? 'Checking AWS connection',
+      color: awsConnected ? 'green' : 'red',
     },
   ]
 
@@ -108,8 +108,14 @@ function App() {
           <div className="aws-card">
             <div className="aws-card-icon">☁</div>
             <h3>AWS Cloud</h3>
-            <span className="offline">● Not Connected</span>
-            <p>Connect your cloud account to get started.</p>
+            <span className={awsConnected ? 'online' : 'offline'}>
+              ● {awsConnected ? 'Connected' : 'Not Connected'}
+            </span>
+            <p>
+              {awsConnected
+                ? `Live AWS monitoring · ${dashboardData.aws_region}`
+                : 'AWS connection is currently unavailable.'}
+            </p>
           </div>
           <p className="version">CloudLaunch v1.0</p>
         </div>
@@ -126,7 +132,7 @@ function App() {
           <div className="topbar-right">
             <div className="environment">
               <span className="environment-dot" />
-              {dashboardData?.environment ?? 'Development'}
+              {dashboardData?.environment ?? 'Loading'}
             </div>
             <div className="notification">♧</div>
             <div className="avatar">A</div>
@@ -157,11 +163,11 @@ function App() {
 
         <section className="section-heading">
           <div>
-            <h2>Platform Overview</h2>
-            <p>Here's what's happening across your platform.</p>
+            <h2>AWS Infrastructure Overview</h2>
+            <p>Live EC2 information retrieved from your AWS account.</p>
           </div>
           <span className="demo-label">
-            {dashboardData ? 'API DATA' : 'WAITING FOR DATA'}
+            {dashboardData ? 'LIVE AWS DATA' : 'WAITING FOR DATA'}
           </span>
         </section>
 
@@ -193,8 +199,8 @@ function App() {
             </div>
             <div className="empty-state">
               <div className="empty-icon">☁</div>
-              <h3>No deployments yet</h3>
-              <p>Your deployment history will appear here.</p>
+              <h3>Deployment history unavailable</h3>
+              <p>GitHub Actions integration is not connected yet.</p>
             </div>
           </div>
 
@@ -205,13 +211,14 @@ function App() {
             </div>
             <div className="aws-content">
               <div className="aws-logo">aws</div>
-              <h3>Connect to AWS</h3>
+              <h3>{awsConnected ? 'AWS Connected' : 'AWS Unavailable'}</h3>
               <p>
-                Connect your AWS account to monitor resources
-                and infrastructure.
+                {awsConnected
+                  ? `${dashboardData.total_ec2_instances} EC2 instance(s) found in ${dashboardData.aws_region}.`
+                  : dashboardData?.aws_error ?? 'Waiting for AWS connection.'}
               </p>
               <span className="connect-button">
-                Connection coming soon
+                {awsConnected ? 'Live connection active' : 'Connection unavailable'}
               </span>
             </div>
           </div>
@@ -235,8 +242,8 @@ function App() {
             </div>
             <div className="empty-state">
               <div className="empty-icon">▤</div>
-              <h3>No recent activity</h3>
-              <p>Pipeline and deployment events will appear here.</p>
+              <h3>Activity tracking unavailable</h3>
+              <p>Pipeline and deployment events are not integrated yet.</p>
             </div>
           </div>
 
@@ -249,7 +256,7 @@ function App() {
               <div>
                 <span className="health-icon">▣</span>
                 <h4>Frontend</h4>
-                <small className="online">● Running locally</small>
+                <small className="online">● Running</small>
               </div>
               <div>
                 <span className="health-icon">&lt;/&gt;</span>
@@ -261,8 +268,8 @@ function App() {
               <div>
                 <span className="health-icon">☁</span>
                 <h4>AWS Cloud</h4>
-                <small className="offline">
-                  ● {dashboardData?.aws_connected ? 'Connected' : 'Not Connected'}
+                <small className={awsConnected ? 'online' : 'offline'}>
+                  ● {awsConnected ? 'Connected' : 'Not Connected'}
                 </small>
               </div>
             </div>
