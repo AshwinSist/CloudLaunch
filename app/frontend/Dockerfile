@@ -15,13 +15,19 @@ RUN npm run build
 # Stage 2: Serve using Nginx without root privileges
 FROM nginxinc/nginx-unprivileged:alpine
 
+# Temporarily use root to install security updates
+USER root
+
+# Update Alpine security packages
+RUN apk upgrade --no-cache
+
 # Copy React production files
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Copy custom Nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Explicitly run Nginx as a non-root user
+# Run Nginx as a non-root user
 USER 101
 
 EXPOSE 8080
